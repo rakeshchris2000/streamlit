@@ -1,76 +1,66 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 
 # Load data
 @st.cache_data
 def load_data():
     df = pd.read_csv("swiggy.csv")
-    df.columns = df.columns.str.strip()  # Remove extra whitespace
+    df.columns = df.columns.str.strip()
     return df
 
 df = load_data()
 
 # Sidebar filters
-st.sidebar.header("Filter Options")
+st.sidebar.header("🔍 Filter Options")
 
 # City filter
-city_options = df["City"].dropna().unique()
-selected_city = st.sidebar.selectbox("Select City", options=["All"] + list(city_options))
+city_list = df["City"].dropna().unique()
+selected_city = st.sidebar.selectbox("Select City", options=["All"] + sorted(city_list.tolist()))
 
-# Food Type filter
-food_options = df["Food type"].dropna().unique()
-selected_food = st.sidebar.multiselect("Select Food Type", options=food_options, default=list(food_options))
+# Food type filter
+food_types = df["Food type"].dropna().unique()
+selected_food_types = st.sidebar.multiselect("Select Food Types", options=sorted(food_types), default=sorted(food_types))
 
-# Price filter
+# Price range slider
 min_price = int(df["Price"].min())
 max_price = int(df["Price"].max())
-price_range = st.sidebar.slider("Select Price Range", min_price, max_price, (min_price, max_price))
+selected_price_range = st.sidebar.slider("Select Price Range", min_price, max_price, (min_price, max_price))
 
-# Filter data
+# Apply filters
 filtered_df = df[
-    (df["Price"] >= price_range[0]) &
-    (df["Price"] <= price_range[1]) &
-    (df["Food type"].isin(selected_food))
+    (df["Price"] >= selected_price_range[0]) &
+    (df["Price"] <= selected_price_range[1]) &
+    (df["Food type"].isin(selected_food_types))
 ]
 
 if selected_city != "All":
     filtered_df = filtered_df[filtered_df["City"] == selected_city]
 
-# Main Title
-st.title("🍽️ Swiggy Restaurant Explorer")
+# Page title
+st.title("🍔 Swiggy Restaurant Dashboard")
 
-# Summary metrics
-st.markdown("### 📊 Summary")
+# Show summary metrics
+st.subheader("📊 Summary")
 col1, col2, col3 = st.columns(3)
 col1.metric("Total Restaurants", len(filtered_df))
-col2.metric("Avg. Rating", round(filtered_df["Avg ratings"].mean(), 2))
-col3.metric("Avg. Price", f"₹{int(filtered_df['Price'].mean())}")
+col2.metric("Average Rating", round(filtered_df["Avg ratings"].mean(), 2) if not filtered_df.empty else "N/A")
+col3.metric("Average Price", f"₹{int(filtered_df['Price'].mean())}" if not filtered_df.empty else "N/A")
 
-# Data Table
-st.markdown("### 📋 Restaurant Listings")
+# Show data table
+st.subheader("📋 Restaurant Listings")
 st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
 
-# Bar Chart - Top restaurants by average rating
-st.markdown("### ⭐ Top Rated Restaurants")
-top_rated = filtered_df.sort_values(by="Avg ratings", ascending=False).head(10)
-fig1 = px.bar(top_rated, x="Restaurant", y="Avg ratings", color="City", title="Top 10 Restaurants by Average Rating")
-st.plotly_chart(fig1, use_container_width=True)
+# Bar Chart: Average Rating per Top 10 Restaurants
+st.subheader("⭐ Top Rated Restaurants (Bar Chart)")
+if not filtered_df.empty:
+    top_rated = filtered_df.sort_values(by="Avg ratings", ascending=False).head(10)
+    st.bar_chart(top_rated.set_index("Restaurant")["Avg ratings"])
 
-# Pie Chart - Distribution of Food Types
-st.markdown("### 🥘 Food Type Distribution")
-food_counts = filtered_df["Food type"].value_counts().reset_index()
-food_counts.columns = ["Food type", "Count"]
-fig2 = px.pie(food_counts, values="Count", names="Food type", title="Food Type Distribution")
-st.plotly_chart(fig2, use_container_width=True)
-
-# Box Plot - Price Distribution by City
-st.markdown("### 💰 Price Distribution by City")
-if selected_city == "All":
-    fig3 = px.box(filtered_df, x="City", y="Price", color="City", title="Price Distribution Across Cities")
-    st.plotly_chart(fig3, use_container_width=True)
+# Line Chart: Price Trend Across Restaurants
+st.subheader("💰 Price Comparison (Line Chart)")
+if not filtered_df.empty:
+    st.line_chart(filtered_df.sort_values(by="Price").set_index("Restaurant")["Price"])
 
 # Footer
 st.markdown("---")
-st.markdown("Created with ❤️ using Streamlit and Plotly")
-
+st.markdown("Made with ❤️ using Streamlit and Pandas")
